@@ -3,6 +3,7 @@ import 'db.dart';
 import 'package:just_audio/just_audio.dart';
 import 'dart:async';
 import 'package:splashscreen/splashscreen.dart';
+import 'package:audio_video_progress_bar/audio_video_progress_bar.dart';
 
 void main() => runApp(MyApp());
 
@@ -89,6 +90,7 @@ class _SecondScreenState extends State<SecondScreen>
     setState(() {
       duration;
     });
+    init2();
   }
 
   void next() {
@@ -112,6 +114,56 @@ class _SecondScreenState extends State<SecondScreen>
     });
     _init(music);
   }
+
+  void init2() async {
+    _player.playerStateStream.listen((playerState) {
+      final isPlaying = playerState.playing;
+      final processingState = playerState.processingState;
+      if (processingState == ProcessingState.loading ||
+          processingState == ProcessingState.buffering) {
+      } else if (!isPlaying) {
+      } else if (processingState != ProcessingState.completed) {
+      } else {
+        _player.seek(Duration.zero);
+        _player.pause();
+      }
+    });
+
+    _player.positionStream.listen((position) {
+      final oldState = progressNotifier.value;
+      progressNotifier.value = ProgressBarState(
+        current: position,
+        buffered: oldState.buffered,
+        total: oldState.total,
+      );
+    });
+
+    _player.bufferedPositionStream.listen((bufferedPosition) {
+      final oldState = progressNotifier.value;
+      progressNotifier.value = ProgressBarState(
+        current: oldState.current,
+        buffered: bufferedPosition,
+        total: oldState.total,
+      );
+    });
+
+    _player.durationStream.listen((totalDuration) {
+      final oldState = progressNotifier.value;
+      progressNotifier.value = ProgressBarState(
+        current: oldState.current,
+        buffered: oldState.buffered,
+        total: totalDuration ?? Duration.zero,
+      );
+    });
+  }
+
+  final progressNotifier = ValueNotifier<ProgressBarState>(
+    ProgressBarState(
+      current: Duration.zero,
+      buffered: Duration.zero,
+      total: Duration.zero,
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -140,9 +192,26 @@ class _SecondScreenState extends State<SecondScreen>
             child: Text(myMusicList[music].singer,
                 style: TextStyle(fontSize: 20, color: Colors.white)),
           )),
+          ValueListenableBuilder<ProgressBarState>(
+            valueListenable: progressNotifier,
+            builder: (_, value, __) {
+              return Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: ProgressBar(
+                      progress: value.current,
+                      buffered: value.buffered,
+                      total: value.total,
+                      onSeek: _player.seek,
+                      baseBarColor: Color.fromARGB(255, 42, 42, 42),
+                      progressBarColor: Color.fromARGB(255, 242, 242, 242),
+                      thumbColor: Color.fromARGB(255, 255, 255, 255),
+                      bufferedBarColor: Color.fromARGB(255, 118, 118, 118),
+                      timeLabelTextStyle: TextStyle(color: Colors.white)));
+            },
+          ),
           SizedBox(
               child: Padding(
-                  padding: EdgeInsets.all(30.0),
+                  padding: EdgeInsets.all(10.0),
                   child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -185,11 +254,17 @@ class _SecondScreenState extends State<SecondScreen>
                               size: 40, color: Colors.white),
                         ),
                       ]))),
-          SizedBox(
-              child: Padding(
-                  padding: EdgeInsets.all(25.0),
-                  child: Text('Durée: $duration',
-                      style: TextStyle(color: Colors.white))))
         ])));
   }
+}
+
+class ProgressBarState {
+  ProgressBarState({
+    required this.current,
+    required this.buffered,
+    required this.total,
+  });
+  final Duration current;
+  final Duration buffered;
+  final Duration total;
 }
